@@ -21,6 +21,9 @@ type Relationship = {
   relationshipType: "parent" | "sibling" | "spouse";
 };
 
+const CARD_WIDTH = 165;
+const LATERAL_CARD_WIDTH = 145;
+
 export default function ExploreScreen() {
   const [people, setPeople] = useState<Person[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
@@ -30,15 +33,16 @@ export default function ExploreScreen() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  async function loadData() {
     try {
       const [peopleResponse, relationshipsResponse] = await Promise.all([
         fetch(`${API_URL}/people`),
         fetch(`${API_URL}/relationships`),
       ]);
 
-      const peopleData = await peopleResponse.json();
-      const relationshipsData = await relationshipsResponse.json();
+      const peopleData: Person[] = await peopleResponse.json();
+      const relationshipsData: Relationship[] =
+        await relationshipsResponse.json();
 
       setPeople(peopleData);
       setRelationships(relationshipsData);
@@ -49,7 +53,7 @@ export default function ExploreScreen() {
     } catch (error) {
       console.log("Could not connect to the server:", error);
     }
-  };
+  }
 
   if (!selectedPerson) {
     return (
@@ -116,23 +120,43 @@ export default function ExploreScreen() {
     })
     .filter(Boolean) as Person[];
 
-  const PersonCard = ({
+  const parentsAreSpouses =
+    parents.length === 2 &&
+    relationships.some(
+      (relationship) =>
+        relationship.relationshipType === "spouse" &&
+        ((relationship.personId === parents[0].id &&
+          relationship.relatedPersonId === parents[1].id) ||
+          (relationship.personId === parents[1].id &&
+            relationship.relatedPersonId === parents[0].id))
+    );
+
+  function PersonCard({
     person,
     label,
     selected = false,
+    width = CARD_WIDTH,
   }: {
     person: Person;
     label: string;
     selected?: boolean;
-  }) => (
-    <Pressable
-      style={[styles.personCard, selected && styles.selectedCard]}
-      onPress={() => setSelectedPerson(person)}
-    >
-      <Text style={styles.relationshipLabel}>{label}</Text>
-      <Text style={styles.personName}>{person.name}</Text>
-    </Pressable>
-  );
+    width?: number;
+  }) {
+    return (
+      <Pressable
+        style={[
+          styles.personCard,
+          { width },
+          selected && styles.selectedCard,
+        ]}
+        onPress={() => setSelectedPerson(person)}
+      >
+        <Text style={styles.relationshipLabel}>{label}</Text>
+
+        <Text style={styles.personName}>{person.name}</Text>
+      </Pressable>
+    );
+  }
 
   return (
     <ScrollView
@@ -158,56 +182,70 @@ export default function ExploreScreen() {
             ))}
           </View>
 
-          {parents.length === 1 && <View style={styles.verticalLine} />}
+          {parentsAreSpouses && (
+            <View style={styles.spouseConnection}>
+              <View style={styles.spouseLine} />
 
-          {parents.length > 1 && (
-            <View style={styles.parentLines}>
-              <View style={styles.leftDiagonal} />
-              <View style={styles.rightDiagonal} />
+              <Text style={styles.spouseLabel}>spouse</Text>
             </View>
           )}
+
+          <View style={styles.parentConnection}>
+            {parents.length === 1 ? (
+              <View style={styles.singleParentLine} />
+            ) : (
+              <>
+                <View style={styles.leftParentLine} />
+                <View style={styles.rightParentLine} />
+              </>
+            )}
+          </View>
         </View>
       )}
 
-      {/* Selected person + siblings/spouses */}
-      <View style={styles.middleRow}>
-        <View style={styles.selectedWrapper}>
-          <PersonCard
-            person={selectedPerson}
-            label="Selected person"
-            selected
-          />
-        </View>
+      {/* Selected person and lateral relationships */}
+      <View style={styles.relationshipRow}>
+        <PersonCard
+          person={selectedPerson}
+          label="Selected person"
+          selected
+        />
 
-        {(siblings.length > 0 || spouses.length > 0) && (
-          <View style={styles.lateralFamily}>
-            {siblings.map((sibling) => (
-              <View key={`sibling-${sibling.id}`} style={styles.lateralItem}>
-                <View style={styles.horizontalLine} />
-                <PersonCard
-                  person={sibling}
-                  label="Sibling"
-                />
-              </View>
-            ))}
+        {siblings.map((sibling) => (
+          <View
+            key={`sibling-${sibling.id}`}
+            style={styles.lateralItem}
+          >
+            <View style={styles.horizontalLine} />
 
-            {spouses.map((spouse) => (
-              <View key={`spouse-${spouse.id}`} style={styles.lateralItem}>
-                <View style={styles.horizontalLine} />
-                <PersonCard
-                  person={spouse}
-                  label="Spouse"
-                />
-              </View>
-            ))}
+            <PersonCard
+              person={sibling}
+              label="Sibling"
+              width={LATERAL_CARD_WIDTH}
+            />
           </View>
-        )}
+        ))}
+
+        {spouses.map((spouse) => (
+          <View
+            key={`spouse-${spouse.id}`}
+            style={styles.lateralItem}
+          >
+            <View style={styles.horizontalLine} />
+
+            <PersonCard
+              person={spouse}
+              label="Spouse"
+              width={LATERAL_CARD_WIDTH}
+            />
+          </View>
+        ))}
       </View>
 
       {/* Children */}
       {children.length > 0 && (
         <View style={styles.childrenArea}>
-          <View style={styles.verticalLine} />
+          <View style={styles.childLine} />
 
           <View style={styles.childrenRow}>
             {children.map((child) => (
@@ -259,14 +297,15 @@ const styles = StyleSheet.create({
   },
 
   personCard: {
-    minWidth: 140,
-    maxWidth: 180,
+    width: CARD_WIDTH,
+    minHeight: 120,
     paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 14,
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#fff",
   },
 
@@ -284,6 +323,7 @@ const styles = StyleSheet.create({
   personName: {
     fontSize: 20,
     fontWeight: "600",
+    textAlign: "center",
   },
 
   parentsArea: {
@@ -294,55 +334,76 @@ const styles = StyleSheet.create({
   parentsRow: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 16,
+    gap: 12,
   },
 
-  parentLines: {
-    width: 300,
+  spouseConnection: {
+    width: CARD_WIDTH * 2 + 12,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  spouseLine: {
+    position: "absolute",
+    width: CARD_WIDTH * 2 + 12,
+    height: 2,
+    backgroundColor: "#999",
+  },
+
+  spouseLabel: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 6,
+    fontSize: 13,
+    color: "#666",
+  },
+
+  parentConnection: {
+    width: CARD_WIDTH * 2 + 12,
     height: 65,
     position: "relative",
   },
 
-  leftDiagonal: {
+  singleParentLine: {
+    position: "absolute",
+    width: 2,
+    height: 65,
+    backgroundColor: "#999",
+    left: "50%",
+    top: 0,
+  },
+
+  leftParentLine: {
     position: "absolute",
     width: 2,
     height: 75,
     backgroundColor: "#999",
-    left: 105,
+    left: CARD_WIDTH / 2,
     top: -5,
     transform: [{ rotate: "-32deg" }],
   },
 
-  rightDiagonal: {
+  rightParentLine: {
     position: "absolute",
     width: 2,
     height: 75,
     backgroundColor: "#999",
-    right: 105,
+    right: CARD_WIDTH / 2,
     top: -5,
     transform: [{ rotate: "32deg" }],
   },
 
-  middleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  relationshipRow: {
     width: "100%",
-  },
-
-  selectedWrapper: {
-    alignItems: "center",
-  },
-
-  lateralFamily: {
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    marginLeft: 12,
   },
 
   lateralItem: {
     flexDirection: "row",
     alignItems: "center",
+    marginLeft: 8,
   },
 
   horizontalLine: {
@@ -351,20 +412,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#999",
   },
 
-  verticalLine: {
+  childrenArea: {
+    alignItems: "center",
+  },
+
+  childLine: {
     width: 2,
     height: 45,
     backgroundColor: "#999",
   },
 
-  childrenArea: {
-    alignItems: "center",
-  },
-
   childrenRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "center",
-    gap: 16,
+    gap: 12,
   },
 });
