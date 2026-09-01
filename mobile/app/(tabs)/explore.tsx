@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Dimensions,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,7 @@ type Relationship = {
 
 const CARD_WIDTH = 165;
 const LATERAL_CARD_WIDTH = 145;
+const SCREEN_WIDTH = Dimensions.get("window").width;
 
 export default function ExploreScreen() {
   const [people, setPeople] = useState<Person[]>([]);
@@ -152,7 +154,6 @@ export default function ExploreScreen() {
         onPress={() => setSelectedPerson(person)}
       >
         <Text style={styles.relationshipLabel}>{label}</Text>
-
         <Text style={styles.personName}>{person.name}</Text>
       </Pressable>
     );
@@ -162,6 +163,7 @@ export default function ExploreScreen() {
     <ScrollView
       style={styles.scrollView}
       contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
     >
       <Text style={styles.title}>Family Tree</Text>
 
@@ -169,95 +171,103 @@ export default function ExploreScreen() {
         Tap a person to center the tree on them.
       </Text>
 
-      {/* Parents */}
-      {parents.length > 0 && (
-        <View style={styles.parentsArea}>
-          <View style={styles.parentsRow}>
-            {parents.map((parent) => (
-              <PersonCard
-                key={parent.id}
-                person={parent}
-                label="Parent"
-              />
-            ))}
-          </View>
+      <ScrollView
+        horizontal
+        style={styles.horizontalScroll}
+        contentContainerStyle={styles.treeContent}
+        showsHorizontalScrollIndicator={true}
+      >
+        <View style={styles.tree}>
+          {/* Parents */}
+          {parents.length > 0 && (
+            <View style={styles.parentsArea}>
+              <View style={styles.parentsRow}>
+                {parents.map((parent) => (
+                  <PersonCard
+                    key={parent.id}
+                    person={parent}
+                    label="Parent"
+                  />
+                ))}
+              </View>
 
-          {parentsAreSpouses && (
-            <View style={styles.spouseConnection}>
-              <View style={styles.spouseLine} />
+              {parentsAreSpouses && (
+                <View style={styles.spouseConnection}>
+                  <View style={styles.spouseLine} />
+                  <Text style={styles.spouseLabel}>spouse</Text>
+                </View>
+              )}
 
-              <Text style={styles.spouseLabel}>spouse</Text>
+              <View style={styles.parentConnection}>
+                {parents.length === 1 ? (
+                  <View style={styles.singleParentLine} />
+                ) : (
+                  <>
+                    <View style={styles.leftParentLine} />
+                    <View style={styles.rightParentLine} />
+                  </>
+                )}
+              </View>
             </View>
           )}
 
-          <View style={styles.parentConnection}>
-            {parents.length === 1 ? (
-              <View style={styles.singleParentLine} />
-            ) : (
-              <>
-                <View style={styles.leftParentLine} />
-                <View style={styles.rightParentLine} />
-              </>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* Selected person and lateral relationships */}
-      <View style={styles.relationshipRow}>
-        <PersonCard
-          person={selectedPerson}
-          label="Selected person"
-          selected
-        />
-
-        {siblings.map((sibling) => (
-          <View
-            key={`sibling-${sibling.id}`}
-            style={styles.lateralItem}
-          >
-            <View style={styles.horizontalLine} />
-
+          {/* Selected person and lateral relationships */}
+          <View style={styles.relationshipRow}>
             <PersonCard
-              person={sibling}
-              label="Sibling"
-              width={LATERAL_CARD_WIDTH}
+              person={selectedPerson}
+              label="Selected person"
+              selected
             />
-          </View>
-        ))}
 
-        {spouses.map((spouse) => (
-          <View
-            key={`spouse-${spouse.id}`}
-            style={styles.lateralItem}
-          >
-            <View style={styles.horizontalLine} />
+            {siblings.map((sibling) => (
+              <View
+                key={`sibling-${sibling.id}`}
+                style={styles.lateralItem}
+              >
+                <View style={styles.horizontalLine} />
 
-            <PersonCard
-              person={spouse}
-              label="Spouse"
-              width={LATERAL_CARD_WIDTH}
-            />
-          </View>
-        ))}
-      </View>
+                <PersonCard
+                  person={sibling}
+                  label="Sibling"
+                  width={LATERAL_CARD_WIDTH}
+                />
+              </View>
+            ))}
 
-      {/* Children */}
-      {children.length > 0 && (
-        <View style={styles.childrenArea}>
-          <View style={styles.childLine} />
+            {spouses.map((spouse) => (
+              <View
+                key={`spouse-${spouse.id}`}
+                style={styles.lateralItem}
+              >
+                <View style={styles.horizontalLine} />
 
-          <View style={styles.childrenRow}>
-            {children.map((child) => (
-              <PersonCard
-                key={child.id}
-                person={child}
-                label="Child"
-              />
+                <PersonCard
+                  person={spouse}
+                  label="Spouse"
+                  width={LATERAL_CARD_WIDTH}
+                />
+              </View>
             ))}
           </View>
+
+          {/* Children */}
+          {children.length > 0 && (
+            <View style={styles.childrenArea}>
+              <View style={styles.childLine} />
+
+              <View style={styles.childrenRow}>
+                {children.map((child) => (
+                  <PersonCard
+                    key={child.id}
+                    person={child}
+                    label="Child"
+                  />
+                ))}
+              </View>
+            </View>
+          )}
         </View>
-      )}
+      </ScrollView>
     </ScrollView>
   );
 }
@@ -276,24 +286,37 @@ const styles = StyleSheet.create({
   },
 
   container: {
-    padding: 24,
     paddingTop: 80,
     paddingBottom: 80,
-    alignItems: "center",
+    minWidth: SCREEN_WIDTH,
   },
 
   title: {
     fontSize: 32,
     fontWeight: "bold",
-    alignSelf: "flex-start",
+    marginHorizontal: 24,
     marginBottom: 12,
   },
 
   instruction: {
     fontSize: 17,
     color: "#666",
-    alignSelf: "flex-start",
+    marginHorizontal: 24,
     marginBottom: 40,
+  },
+
+  horizontalScroll: {
+    width: "100%",
+  },
+
+  treeContent: {
+    minWidth: SCREEN_WIDTH,
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+
+  tree: {
+    alignItems: "center",
   },
 
   personCard: {
@@ -327,7 +350,6 @@ const styles = StyleSheet.create({
   },
 
   parentsArea: {
-    width: "100%",
     alignItems: "center",
   },
 
@@ -394,10 +416,9 @@ const styles = StyleSheet.create({
   },
 
   relationshipRow: {
-    width: "100%",
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
 
   lateralItem: {
