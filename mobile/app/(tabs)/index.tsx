@@ -3,6 +3,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -24,6 +25,7 @@ export default function HomeScreen() {
   const [people, setPeople] = useState<Person[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [newPersonName, setNewPersonName] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -41,11 +43,40 @@ export default function HomeScreen() {
 
   const selectedRelationships = selectedPerson
     ? relationships.filter(
-        (relationship) =>
-          relationship.personId === selectedPerson.id ||
-          relationship.relatedPersonId === selectedPerson.id
-      )
+      (relationship) =>
+        relationship.personId === selectedPerson.id ||
+        relationship.relatedPersonId === selectedPerson.id
+    )
     : [];
+
+  const addPerson = async () => {
+    if (!newPersonName.trim()) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/people`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newPersonName.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to add person");
+      }
+
+      const newPerson = await response.json();
+
+      setPeople((currentPeople) => [...currentPeople, newPerson]);
+      setNewPersonName("");
+    } catch (error) {
+      console.log("Could not add person:", error);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -64,6 +95,17 @@ export default function HomeScreen() {
               <Text style={styles.personName}>{person.name}</Text>
             </Pressable>
           ))}
+
+          <TextInput
+            style={styles.input}
+            placeholder="Person's name"
+            value={newPersonName}
+            onChangeText={setNewPersonName}
+          />
+
+          <Pressable style={styles.addButton} onPress={addPerson}>
+            <Text style={styles.addButtonText}>+ Add Person</Text>
+          </Pressable>
         </>
       ) : (
         <>
@@ -168,4 +210,28 @@ const styles = StyleSheet.create({
     fontSize: 21,
     marginTop: 4,
   },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 18,
+    marginTop: 20,
+    marginBottom: 10,
+  },
+
+  addButton: {
+    backgroundColor: "#007AFF",
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  addButtonText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "600",
+  },
 });
+
