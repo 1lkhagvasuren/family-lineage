@@ -1,112 +1,370 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useEffect, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+const API_URL = "http://172.20.10.7:3000";
 
-export default function TabTwoScreen() {
+type Person = {
+  id: number;
+  name: string;
+};
+
+type Relationship = {
+  id: number;
+  personId: number;
+  relatedPersonId: number;
+  relationshipType: "parent" | "sibling" | "spouse";
+};
+
+export default function ExploreScreen() {
+  const [people, setPeople] = useState<Person[]>([]);
+  const [relationships, setRelationships] = useState<Relationship[]>([]);
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [peopleResponse, relationshipsResponse] = await Promise.all([
+        fetch(`${API_URL}/people`),
+        fetch(`${API_URL}/relationships`),
+      ]);
+
+      const peopleData = await peopleResponse.json();
+      const relationshipsData = await relationshipsResponse.json();
+
+      setPeople(peopleData);
+      setRelationships(relationshipsData);
+
+      if (peopleData.length > 0) {
+        setSelectedPerson(peopleData[0]);
+      }
+    } catch (error) {
+      console.log("Could not connect to the server:", error);
+    }
+  };
+
+  if (!selectedPerson) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.title}>Family Tree</Text>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
+  const parents = relationships
+    .filter(
+      (relationship) =>
+        relationship.relationshipType === "parent" &&
+        relationship.relatedPersonId === selectedPerson.id
+    )
+    .map((relationship) =>
+      people.find((person) => person.id === relationship.personId)
+    )
+    .filter(Boolean) as Person[];
+
+  const children = relationships
+    .filter(
+      (relationship) =>
+        relationship.relationshipType === "parent" &&
+        relationship.personId === selectedPerson.id
+    )
+    .map((relationship) =>
+      people.find((person) => person.id === relationship.relatedPersonId)
+    )
+    .filter(Boolean) as Person[];
+
+  const siblings = relationships
+    .filter(
+      (relationship) =>
+        relationship.relationshipType === "sibling" &&
+        (relationship.personId === selectedPerson.id ||
+          relationship.relatedPersonId === selectedPerson.id)
+    )
+    .map((relationship) => {
+      const otherId =
+        relationship.personId === selectedPerson.id
+          ? relationship.relatedPersonId
+          : relationship.personId;
+
+      return people.find((person) => person.id === otherId);
+    })
+    .filter(Boolean) as Person[];
+
+  const spouses = relationships
+    .filter(
+      (relationship) =>
+        relationship.relationshipType === "spouse" &&
+        (relationship.personId === selectedPerson.id ||
+          relationship.relatedPersonId === selectedPerson.id)
+    )
+    .map((relationship) => {
+      const otherId =
+        relationship.personId === selectedPerson.id
+          ? relationship.relatedPersonId
+          : relationship.personId;
+
+      return people.find((person) => person.id === otherId);
+    })
+    .filter(Boolean) as Person[];
+
+  const PersonCard = ({
+    person,
+    label,
+    selected = false,
+  }: {
+    person: Person;
+    label: string;
+    selected?: boolean;
+  }) => (
+    <Pressable
+      style={[styles.personCard, selected && styles.selectedCard]}
+      onPress={() => setSelectedPerson(person)}
+    >
+      <Text style={styles.relationshipLabel}>{label}</Text>
+      <Text style={styles.personName}>{person.name}</Text>
+    </Pressable>
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={styles.container}
+    >
+      <Text style={styles.title}>Family Tree</Text>
+
+      <Text style={styles.instruction}>
+        Tap a person to center the tree on them.
+      </Text>
+
+      {/* Parents */}
+      {parents.length > 0 && (
+        <View style={styles.parentsArea}>
+          <View style={styles.parentsRow}>
+            {parents.map((parent) => (
+              <PersonCard
+                key={parent.id}
+                person={parent}
+                label="Parent"
+              />
+            ))}
+          </View>
+
+          {parents.length === 1 && <View style={styles.verticalLine} />}
+
+          {parents.length > 1 && (
+            <View style={styles.parentLines}>
+              <View style={styles.leftDiagonal} />
+              <View style={styles.rightDiagonal} />
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Selected person + siblings/spouses */}
+      <View style={styles.middleRow}>
+        <View style={styles.selectedWrapper}>
+          <PersonCard
+            person={selectedPerson}
+            label="Selected person"
+            selected
+          />
+        </View>
+
+        {(siblings.length > 0 || spouses.length > 0) && (
+          <View style={styles.lateralFamily}>
+            {siblings.map((sibling) => (
+              <View key={`sibling-${sibling.id}`} style={styles.lateralItem}>
+                <View style={styles.horizontalLine} />
+                <PersonCard
+                  person={sibling}
+                  label="Sibling"
+                />
+              </View>
+            ))}
+
+            {spouses.map((spouse) => (
+              <View key={`spouse-${spouse.id}`} style={styles.lateralItem}>
+                <View style={styles.horizontalLine} />
+                <PersonCard
+                  person={spouse}
+                  label="Spouse"
+                />
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Children */}
+      {children.length > 0 && (
+        <View style={styles.childrenArea}>
+          <View style={styles.verticalLine} />
+
+          <View style={styles.childrenRow}>
+            {children.map((child) => (
+              <PersonCard
+                key={child.id}
+                person={child}
+                label="Child"
+              />
+            ))}
+          </View>
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  scrollView: {
+    flex: 1,
+    backgroundColor: "#fff",
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+
+  loadingContainer: {
+    flex: 1,
+    padding: 24,
+    paddingTop: 80,
+    backgroundColor: "#fff",
+  },
+
+  container: {
+    padding: 24,
+    paddingTop: 80,
+    paddingBottom: 80,
+    alignItems: "center",
+  },
+
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    alignSelf: "flex-start",
+    marginBottom: 12,
+  },
+
+  instruction: {
+    fontSize: 17,
+    color: "#666",
+    alignSelf: "flex-start",
+    marginBottom: 40,
+  },
+
+  personCard: {
+    minWidth: 140,
+    maxWidth: 180,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 14,
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+
+  selectedCard: {
+    borderColor: "#007AFF",
+    borderWidth: 2,
+  },
+
+  relationshipLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 6,
+  },
+
+  personName: {
+    fontSize: 20,
+    fontWeight: "600",
+  },
+
+  parentsArea: {
+    width: "100%",
+    alignItems: "center",
+  },
+
+  parentsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 16,
+  },
+
+  parentLines: {
+    width: 300,
+    height: 65,
+    position: "relative",
+  },
+
+  leftDiagonal: {
+    position: "absolute",
+    width: 2,
+    height: 75,
+    backgroundColor: "#999",
+    left: 105,
+    top: -5,
+    transform: [{ rotate: "-32deg" }],
+  },
+
+  rightDiagonal: {
+    position: "absolute",
+    width: 2,
+    height: 75,
+    backgroundColor: "#999",
+    right: 105,
+    top: -5,
+    transform: [{ rotate: "32deg" }],
+  },
+
+  middleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+
+  selectedWrapper: {
+    alignItems: "center",
+  },
+
+  lateralFamily: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 12,
+  },
+
+  lateralItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  horizontalLine: {
+    width: 24,
+    height: 2,
+    backgroundColor: "#999",
+  },
+
+  verticalLine: {
+    width: 2,
+    height: 45,
+    backgroundColor: "#999",
+  },
+
+  childrenArea: {
+    alignItems: "center",
+  },
+
+  childrenRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 16,
   },
 });
