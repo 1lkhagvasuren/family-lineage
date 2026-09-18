@@ -8,17 +8,17 @@ DELETE FROM relationship;
 DELETE FROM person;
 
 -- People
-INSERT INTO person (id, name) VALUES
-  (1, 'Atharva'),
-  (2, 'Sister'),
-  (3, 'Father'),
-  (4, 'Grandmother'),
-  (5, 'Grandfather'),
-  (6, 'Brother'),
-  (7, 'Mother'),
-  (8, 'Uncle'),
-  (9, 'Aunt'),
-  (10, 'Cousin');
+INSERT INTO person (id, name, sex) VALUES
+  (1, 'Atharva', 'male'),
+  (2, 'Priya', 'female'),
+  (3, 'Rajesh', 'male'),
+  (4, 'Kamala', 'female'),
+  (5, 'Ramesh', 'male'),
+  (6, 'Arjun', 'male'),
+  (7, 'Sunita', 'female'),
+  (8, 'Vijay', 'male'),
+  (9, 'Meena', 'female'),
+  (10, 'Rohan', 'male');
 
 -- Relationships
 INSERT INTO relationship (person_id, related_person_id, relationship_type) VALUES

@@ -25,6 +25,23 @@ type Relationship = {
   relationshipType: "parent" | "sibling" | "spouse";
 };
 
+type RelationshipResult = {
+  person: {
+    id: number;
+    name: string;
+  };
+  relatedPerson: {
+    id: number;
+    name: string;
+  };
+  relationship: string | null;
+  path: {
+    id: number;
+    name: string;
+  }[];
+  message?: string;
+};
+
 const relationshipTypes = ["parent", "sibling", "spouse"] as const;
 
 export default function HomeScreen() {
@@ -48,6 +65,23 @@ export default function HomeScreen() {
   const [relationshipType, setRelationshipType] =
     useState<Relationship["relationshipType"]>("parent");
   const [relatedPersonId, setRelatedPersonId] = useState<number | null>(null);
+
+  const [editingRelationshipId, setEditingRelationshipId] =
+    useState<number | null>(null);
+  const [editRelationshipPersonId, setEditRelationshipPersonId] =
+    useState<number | null>(null);
+  const [editRelationshipType, setEditRelationshipType] =
+    useState<Relationship["relationshipType"]>("parent");
+  const [editRelatedPersonId, setEditRelatedPersonId] =
+    useState<number | null>(null);
+
+  const [relationshipFromId, setRelationshipFromId] =
+    useState<number | null>(null);
+  const [relationshipToId, setRelationshipToId] =
+    useState<number | null>(null);
+  const [relationshipResult, setRelationshipResult] =
+    useState<RelationshipResult | null>(null);
+  const [findingRelationship, setFindingRelationship] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -229,6 +263,126 @@ export default function HomeScreen() {
     }
   };
 
+  const startEditingRelationship = (relationship: Relationship) => {
+    setEditingRelationshipId(relationship.id);
+    setEditRelationshipPersonId(relationship.personId);
+    setEditRelationshipType(relationship.relationshipType);
+    setEditRelatedPersonId(relationship.relatedPersonId);
+  };
+
+  const cancelEditingRelationship = () => {
+    setEditingRelationshipId(null);
+    setEditRelationshipPersonId(null);
+    setEditRelationshipType("parent");
+    setEditRelatedPersonId(null);
+  };
+
+  const updateRelationship = async () => {
+    if (
+      !editingRelationshipId ||
+      !editRelationshipPersonId ||
+      !editRelatedPersonId
+    ) {
+      return;
+    }
+
+    if (editRelationshipPersonId === editRelatedPersonId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/relationships/${editingRelationshipId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            personId: editRelationshipPersonId,
+            relatedPersonId: editRelatedPersonId,
+            relationshipType: editRelationshipType,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to update relationship");
+      }
+
+      const updatedRelationship = await response.json();
+
+      setRelationships((currentRelationships) =>
+        currentRelationships.map((relationship) =>
+          relationship.id === updatedRelationship.id
+            ? updatedRelationship
+            : relationship
+        )
+      );
+
+      cancelEditingRelationship();
+    } catch (error) {
+      console.log("Could not update relationship:", error);
+    }
+  };
+
+  const deleteRelationship = async (relationshipId: number) => {
+    try {
+      const response = await fetch(
+        `${API_URL}/relationships/${relationshipId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete relationship");
+      }
+
+      setRelationships((currentRelationships) =>
+        currentRelationships.filter(
+          (relationship) => relationship.id !== relationshipId
+        )
+      );
+
+      if (editingRelationshipId === relationshipId) {
+        cancelEditingRelationship();
+      }
+    } catch (error) {
+      console.log("Could not delete relationship:", error);
+    }
+  };
+
+  const findRelationship = async () => {
+    if (!relationshipFromId || !relationshipToId) {
+      return;
+    }
+
+    if (relationshipFromId === relationshipToId) {
+      return;
+    }
+
+    setFindingRelationship(true);
+    setRelationshipResult(null);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/relationships/between/${relationshipFromId}/${relationshipToId}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to find relationship");
+      }
+
+      const result = await response.json();
+      setRelationshipResult(result);
+    } catch (error) {
+      console.log("Could not find relationship:", error);
+    } finally {
+      setFindingRelationship(false);
+    }
+  };
+
   const selectedRelationships = selectedPerson
     ? relationships.filter(
         (relationship) =>
@@ -269,6 +423,90 @@ export default function HomeScreen() {
               <Text style={styles.personName}>{person.name}</Text>
             </Pressable>
           ))}
+
+          <Text style={styles.sectionTitle}>Find Relationship</Text>
+
+          <Text style={styles.label}>Person</Text>
+
+          {people.map((person) => (
+            <Pressable
+              key={`relationship-from-${person.id}`}
+              style={[
+                styles.optionButton,
+                relationshipFromId === person.id && styles.selectedOption,
+              ]}
+              onPress={() => {
+                setRelationshipFromId(person.id);
+                setRelationshipResult(null);
+              }}
+            >
+              <Text style={styles.optionText}>{person.name}</Text>
+            </Pressable>
+          ))}
+
+          <Text style={styles.label}>Related person</Text>
+
+          {people.map((person) => (
+            <Pressable
+              key={`relationship-to-${person.id}`}
+              style={[
+                styles.optionButton,
+                relationshipToId === person.id && styles.selectedOption,
+              ]}
+              onPress={() => {
+                setRelationshipToId(person.id);
+                setRelationshipResult(null);
+              }}
+            >
+              <Text style={styles.optionText}>{person.name}</Text>
+            </Pressable>
+          ))}
+
+          <Pressable
+            style={styles.addButton}
+            onPress={findRelationship}
+            disabled={findingRelationship}
+          >
+            <Text style={styles.addButtonText}>
+              {findingRelationship
+                ? "Finding..."
+                : "Find Relationship"}
+            </Text>
+          </Pressable>
+
+          {relationshipResult && (
+            <View style={styles.relationshipResult}>
+              {relationshipResult.relationship ? (
+                <>
+                  <Text style={styles.resultLabel}>Relationship</Text>
+
+                  <Text style={styles.resultRelationship}>
+                    {relationshipResult.relationship}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.resultRelationship}>
+                  Relationship could not be determined
+                </Text>
+              )}
+
+              {relationshipResult.path.length > 0 && (
+                <>
+                  <Text style={styles.resultLabel}>Connection path</Text>
+
+                  {relationshipResult.path.map((person, index) => (
+                    <View key={person.id} style={styles.pathItem}>
+                      <Text style={styles.pathName}>{person.name}</Text>
+
+                      {index < relationshipResult.path.length - 1 && (
+                        <Text style={styles.pathArrow}>↓</Text>
+                      )}
+                    </View>
+                  ))}
+                </>
+              )}
+            </View>
+          )}
 
           <Text style={styles.sectionTitle}>Add Person</Text>
 
@@ -383,6 +621,7 @@ export default function HomeScreen() {
             onPress={() => {
               setSelectedPerson(null);
               setEditingPerson(false);
+              cancelEditingRelationship();
             }}
           >
             <Text style={styles.back}>← Back</Text>
@@ -439,17 +678,128 @@ export default function HomeScreen() {
 
                 const type = getRelationshipType(relationship);
 
+                if (editingRelationshipId === relationship.id) {
+                  return (
+                    <View
+                      key={relationship.id}
+                      style={styles.relationshipEdit}
+                    >
+                      <Text style={styles.label}>Person</Text>
+
+                      {people.map((person) => (
+                        <Pressable
+                          key={`edit-person-${relationship.id}-${person.id}`}
+                          style={[
+                            styles.optionButton,
+                            editRelationshipPersonId === person.id &&
+                              styles.selectedOption,
+                          ]}
+                          onPress={() =>
+                            setEditRelationshipPersonId(person.id)
+                          }
+                        >
+                          <Text style={styles.optionText}>
+                            {person.name}
+                          </Text>
+                        </Pressable>
+                      ))}
+
+                      <Text style={styles.label}>Relationship type</Text>
+
+                      <View style={styles.typeRow}>
+                        {relationshipTypes.map((relationshipType) => (
+                          <Pressable
+                            key={`edit-type-${relationship.id}-${relationshipType}`}
+                            style={[
+                              styles.typeButton,
+                              editRelationshipType === relationshipType &&
+                                styles.selectedOption,
+                            ]}
+                            onPress={() =>
+                              setEditRelationshipType(relationshipType)
+                            }
+                          >
+                            <Text style={styles.typeText}>
+                              {relationshipType}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+
+                      <Text style={styles.label}>Related person</Text>
+
+                      {people.map((person) => (
+                        <Pressable
+                          key={`edit-related-${relationship.id}-${person.id}`}
+                          style={[
+                            styles.optionButton,
+                            editRelatedPersonId === person.id &&
+                              styles.selectedOption,
+                          ]}
+                          onPress={() =>
+                            setEditRelatedPersonId(person.id)
+                          }
+                        >
+                          <Text style={styles.optionText}>
+                            {person.name}
+                          </Text>
+                        </Pressable>
+                      ))}
+
+                      <Pressable
+                        style={styles.addButton}
+                        onPress={updateRelationship}
+                      >
+                        <Text style={styles.addButtonText}>
+                          Save Relationship
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        style={styles.cancelButton}
+                        onPress={cancelEditingRelationship}
+                      >
+                        <Text style={styles.cancelButtonText}>
+                          Cancel
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                }
+
                 return (
-                  <Pressable
-                    key={relationship.id}
-                    style={styles.relationship}
-                    onPress={() => setSelectedPerson(otherPerson)}
-                  >
-                    <Text style={styles.relationshipType}>{type}</Text>
-                    <Text style={styles.otherPerson}>
-                      {otherPerson.name}
-                    </Text>
-                  </Pressable>
+                  <View key={relationship.id} style={styles.relationship}>
+                    <Pressable
+                      onPress={() => setSelectedPerson(otherPerson)}
+                    >
+                      <Text style={styles.relationshipType}>{type}</Text>
+                      <Text style={styles.otherPerson}>
+                        {otherPerson.name}
+                      </Text>
+                    </Pressable>
+
+                    <View style={styles.relationshipActions}>
+                      <Pressable
+                        style={styles.smallButton}
+                        onPress={() =>
+                          startEditingRelationship(relationship)
+                        }
+                      >
+                        <Text style={styles.smallButtonText}>Edit</Text>
+                      </Pressable>
+
+                      <Pressable
+                        style={styles.smallDeleteButton}
+                        onPress={() =>
+                          deleteRelationship(relationship.id)
+                        }
+                      >
+                        <Text style={styles.smallDeleteButtonText}>
+                          Delete
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
                 );
               })}
             </>
@@ -669,6 +1019,8 @@ const styles = StyleSheet.create({
   relationship: {
     paddingVertical: 12,
     marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
   },
   relationshipType: {
     fontSize: 16,
@@ -678,5 +1030,71 @@ const styles = StyleSheet.create({
   otherPerson: {
     fontSize: 21,
     marginTop: 4,
+  },
+  relationshipActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+  },
+  smallButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#007AFF",
+    borderRadius: 8,
+  },
+  smallButtonText: {
+    color: "#007AFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  smallDeleteButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#FF3B30",
+    borderRadius: 8,
+  },
+  smallDeleteButtonText: {
+    color: "#FF3B30",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  relationshipEdit: {
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+  },
+  relationshipResult: {
+    padding: 18,
+    marginTop: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+  },
+  resultLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#666",
+    marginBottom: 6,
+  },
+  resultRelationship: {
+    fontSize: 24,
+    fontWeight: "bold",
+    textTransform: "capitalize",
+    marginBottom: 18,
+  },
+  pathItem: {
+    alignItems: "center",
+  },
+  pathName: {
+    fontSize: 18,
+    fontWeight: "500",
+  },
+  pathArrow: {
+    fontSize: 20,
+    marginVertical: 3,
   },
 });
