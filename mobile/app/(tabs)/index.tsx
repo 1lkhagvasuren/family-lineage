@@ -13,6 +13,9 @@ const API_URL = "http://172.20.10.7:3000";
 type Person = {
   id: number;
   name: string;
+  sex: string | null;
+  dateOfBirth: string | null;
+  isAlive: boolean;
 };
 
 type Relationship = {
@@ -30,6 +33,15 @@ export default function HomeScreen() {
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
 
   const [newPersonName, setNewPersonName] = useState("");
+  const [newPersonSex, setNewPersonSex] = useState("");
+  const [newPersonDateOfBirth, setNewPersonDateOfBirth] = useState("");
+  const [newPersonIsAlive, setNewPersonIsAlive] = useState(true);
+
+  const [editingPerson, setEditingPerson] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editSex, setEditSex] = useState("");
+  const [editDateOfBirth, setEditDateOfBirth] = useState("");
+  const [editIsAlive, setEditIsAlive] = useState(true);
 
   const [relationshipPersonId, setRelationshipPersonId] =
     useState<number | null>(null);
@@ -71,6 +83,9 @@ export default function HomeScreen() {
         },
         body: JSON.stringify({
           name: newPersonName.trim(),
+          sex: newPersonSex.trim() || null,
+          dateOfBirth: newPersonDateOfBirth.trim() || null,
+          isAlive: newPersonIsAlive,
         }),
       });
 
@@ -81,9 +96,95 @@ export default function HomeScreen() {
       const newPerson = await response.json();
 
       setPeople((currentPeople) => [...currentPeople, newPerson]);
+
       setNewPersonName("");
+      setNewPersonSex("");
+      setNewPersonDateOfBirth("");
+      setNewPersonIsAlive(true);
     } catch (error) {
       console.log("Could not add person:", error);
+    }
+  };
+
+  const startEditingPerson = () => {
+    if (!selectedPerson) {
+      return;
+    }
+
+    setEditName(selectedPerson.name);
+    setEditSex(selectedPerson.sex || "");
+    setEditDateOfBirth(selectedPerson.dateOfBirth || "");
+    setEditIsAlive(selectedPerson.isAlive);
+    setEditingPerson(true);
+  };
+
+  const updatePerson = async () => {
+    if (!selectedPerson || !editName.trim()) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/people/${selectedPerson.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: editName.trim(),
+          sex: editSex.trim() || null,
+          dateOfBirth: editDateOfBirth.trim() || null,
+          isAlive: editIsAlive,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update person");
+      }
+
+      const updatedPerson = await response.json();
+
+      setPeople((currentPeople) =>
+        currentPeople.map((person) =>
+          person.id === updatedPerson.id ? updatedPerson : person
+        )
+      );
+
+      setSelectedPerson(updatedPerson);
+      setEditingPerson(false);
+    } catch (error) {
+      console.log("Could not update person:", error);
+    }
+  };
+
+  const deletePerson = async () => {
+    if (!selectedPerson) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/people/${selectedPerson.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete person");
+      }
+
+      setPeople((currentPeople) =>
+        currentPeople.filter((person) => person.id !== selectedPerson.id)
+      );
+
+      setRelationships((currentRelationships) =>
+        currentRelationships.filter(
+          (relationship) =>
+            relationship.personId !== selectedPerson.id &&
+            relationship.relatedPersonId !== selectedPerson.id
+        )
+      );
+
+      setSelectedPerson(null);
+    } catch (error) {
+      console.log("Could not delete person:", error);
     }
   };
 
@@ -169,12 +270,52 @@ export default function HomeScreen() {
             </Pressable>
           ))}
 
+          <Text style={styles.sectionTitle}>Add Person</Text>
+
           <TextInput
             style={styles.input}
-            placeholder="Person's name"
+            placeholder="Name"
             value={newPersonName}
             onChangeText={setNewPersonName}
           />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Sex"
+            value={newPersonSex}
+            onChangeText={setNewPersonSex}
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Date of birth (YYYY-MM-DD)"
+            value={newPersonDateOfBirth}
+            onChangeText={setNewPersonDateOfBirth}
+          />
+
+          <Text style={styles.label}>Status</Text>
+
+          <View style={styles.typeRow}>
+            <Pressable
+              style={[
+                styles.typeButton,
+                newPersonIsAlive && styles.selectedOption,
+              ]}
+              onPress={() => setNewPersonIsAlive(true)}
+            >
+              <Text style={styles.typeText}>Living</Text>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.typeButton,
+                !newPersonIsAlive && styles.selectedOption,
+              ]}
+              onPress={() => setNewPersonIsAlive(false)}
+            >
+              <Text style={styles.typeText}>Deceased</Text>
+            </Pressable>
+          </View>
 
           <Pressable style={styles.addButton} onPress={addPerson}>
             <Text style={styles.addButtonText}>+ Add Person</Text>
@@ -238,43 +379,141 @@ export default function HomeScreen() {
         </>
       ) : (
         <>
-          <Pressable onPress={() => setSelectedPerson(null)}>
+          <Pressable
+            onPress={() => {
+              setSelectedPerson(null);
+              setEditingPerson(false);
+            }}
+          >
             <Text style={styles.back}>← Back</Text>
           </Pressable>
 
-          <Text style={styles.selectedName}>{selectedPerson.name}</Text>
+          {!editingPerson ? (
+            <>
+              <Text style={styles.selectedName}>{selectedPerson.name}</Text>
 
-          <Text style={styles.subtitle}>Relationships</Text>
+              <Text style={styles.detail}>
+                Sex: {selectedPerson.sex || "Not specified"}
+              </Text>
 
-          {selectedRelationships.map((relationship) => {
-            const otherPersonId =
-              relationship.personId === selectedPerson.id
-                ? relationship.relatedPersonId
-                : relationship.personId;
+              <Text style={styles.detail}>
+                Date of birth:{" "}
+                {selectedPerson.dateOfBirth || "Not specified"}
+              </Text>
 
-            const otherPerson = people.find(
-              (person) => person.id === otherPersonId
-            );
+              <Text style={styles.detail}>
+                Status: {selectedPerson.isAlive ? "Living" : "Deceased"}
+              </Text>
 
-            if (!otherPerson) {
-              return null;
-            }
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={styles.secondaryButton}
+                  onPress={startEditingPerson}
+                >
+                  <Text style={styles.secondaryButtonText}>Edit</Text>
+                </Pressable>
 
-            const type = getRelationshipType(relationship);
+                <Pressable
+                  style={styles.deleteButton}
+                  onPress={deletePerson}
+                >
+                  <Text style={styles.deleteButtonText}>Delete</Text>
+                </Pressable>
+              </View>
 
-            return (
-              <Pressable
-                key={relationship.id}
-                style={styles.relationship}
-                onPress={() => setSelectedPerson(otherPerson)}
-              >
-                <Text style={styles.relationshipType}>{type}</Text>
-                <Text style={styles.otherPerson}>
-                  {otherPerson.name}
-                </Text>
+              <Text style={styles.subtitle}>Relationships</Text>
+
+              {selectedRelationships.map((relationship) => {
+                const otherPersonId =
+                  relationship.personId === selectedPerson.id
+                    ? relationship.relatedPersonId
+                    : relationship.personId;
+
+                const otherPerson = people.find(
+                  (person) => person.id === otherPersonId
+                );
+
+                if (!otherPerson) {
+                  return null;
+                }
+
+                const type = getRelationshipType(relationship);
+
+                return (
+                  <Pressable
+                    key={relationship.id}
+                    style={styles.relationship}
+                    onPress={() => setSelectedPerson(otherPerson)}
+                  >
+                    <Text style={styles.relationshipType}>{type}</Text>
+                    <Text style={styles.otherPerson}>
+                      {otherPerson.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              <Text style={styles.sectionTitle}>Edit Person</Text>
+
+              <TextInput
+                style={styles.input}
+                placeholder="Name"
+                value={editName}
+                onChangeText={setEditName}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Sex"
+                value={editSex}
+                onChangeText={setEditSex}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Date of birth (YYYY-MM-DD)"
+                value={editDateOfBirth}
+                onChangeText={setEditDateOfBirth}
+              />
+
+              <Text style={styles.label}>Status</Text>
+
+              <View style={styles.typeRow}>
+                <Pressable
+                  style={[
+                    styles.typeButton,
+                    editIsAlive && styles.selectedOption,
+                  ]}
+                  onPress={() => setEditIsAlive(true)}
+                >
+                  <Text style={styles.typeText}>Living</Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.typeButton,
+                    !editIsAlive && styles.selectedOption,
+                  ]}
+                  onPress={() => setEditIsAlive(false)}
+                >
+                  <Text style={styles.typeText}>Deceased</Text>
+                </Pressable>
+              </View>
+
+              <Pressable style={styles.addButton} onPress={updatePerson}>
+                <Text style={styles.addButtonText}>Save Changes</Text>
               </Pressable>
-            );
-          })}
+
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => setEditingPerson(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+            </>
+          )}
         </>
       )}
     </ScrollView>
@@ -330,7 +569,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     fontSize: 18,
-    marginTop: 20,
     marginBottom: 10,
   },
   addButton: {
@@ -382,7 +620,51 @@ const styles = StyleSheet.create({
   selectedName: {
     fontSize: 28,
     fontWeight: "bold",
+    marginBottom: 16,
+  },
+  detail: {
+    fontSize: 17,
+    marginBottom: 10,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 20,
     marginBottom: 32,
+  },
+  secondaryButton: {
+    flex: 1,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#007AFF",
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    color: "#007AFF",
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  deleteButton: {
+    flex: 1,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#FF3B30",
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  deleteButtonText: {
+    color: "#FF3B30",
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  cancelButton: {
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    fontSize: 17,
   },
   relationship: {
     paddingVertical: 12,
