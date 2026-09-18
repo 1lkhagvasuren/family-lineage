@@ -60,6 +60,8 @@ export default function HomeScreen() {
   const [editDateOfBirth, setEditDateOfBirth] = useState("");
   const [editIsAlive, setEditIsAlive] = useState(true);
 
+  const [searchQuery, setSearchQuery] = useState("");
+
   const [relationshipPersonId, setRelationshipPersonId] =
     useState<number | null>(null);
   const [relationshipType, setRelationshipType] =
@@ -403,6 +405,8 @@ export default function HomeScreen() {
     return relationship.relationshipType;
   };
 
+  const filteredPeople = people.filter((person) => person.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
   return (
     <ScrollView
       style={styles.scrollView}
@@ -414,14 +418,21 @@ export default function HomeScreen() {
         <>
           <Text style={styles.subtitle}>People</Text>
 
-          {people.map((person) => (
-            <Pressable
-              key={person.id}
-              style={styles.personButton}
-              onPress={() => setSelectedPerson(person)}
-            >
-              <Text style={styles.personName}>{person.name}</Text>
-            </Pressable>
+          <TextInput
+            style={styles.input}
+            placeholder="Search by name..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+
+            {filteredPeople.map((person) => (
+              <Pressable
+                key={person.id}
+                style={styles.personButton}
+                onPress={() => setSelectedPerson(person)}
+              >
+                <Text style={styles.personName}>{person.name}</Text>
+              </Pressable>
           ))}
 
           <Text style={styles.sectionTitle}>Find Relationship</Text>
