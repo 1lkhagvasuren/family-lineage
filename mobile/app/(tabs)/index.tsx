@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-const API_URL = "http://172.20.10.7:3000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 type Person = {
   id: number;
@@ -85,26 +85,34 @@ export default function HomeScreen() {
     useState<RelationshipResult | null>(null);
   const [findingRelationship, setFindingRelationship] = useState(false);
 
-  useEffect(() => {
-    loadData();
+    useEffect(() => {
+    let isMounted = true;
+
+    const fetchData = async () => {
+      try {
+        const [peopleResponse, relationshipsResponse] = await Promise.all([
+          fetch(`${API_URL}/people`),
+          fetch(`${API_URL}/relationships`),
+        ]);
+
+        const peopleData = await peopleResponse.json();
+        const relationshipsData = await relationshipsResponse.json();
+
+        if (isMounted) {
+          setPeople(peopleData);
+          setRelationships(relationshipsData);
+        }
+      } catch (error) {
+        console.log("Could not connect to the server:", error);
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
-
-  const loadData = async () => {
-    try {
-      const [peopleResponse, relationshipsResponse] = await Promise.all([
-        fetch(`${API_URL}/people`),
-        fetch(`${API_URL}/relationships`),
-      ]);
-
-      const peopleData = await peopleResponse.json();
-      const relationshipsData = await relationshipsResponse.json();
-
-      setPeople(peopleData);
-      setRelationships(relationshipsData);
-    } catch (error) {
-      console.log("Could not connect to the server:", error);
-    }
-  };
 
   const addPerson = async () => {
     if (!newPersonName.trim()) {

@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 
-const API_URL = "http://172.20.10.7:3000";
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 type Person = {
   id: number;
@@ -26,16 +26,55 @@ const CARD_WIDTH = 138;
 const LATERAL_CARD_WIDTH = 118;
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
+function PersonCard({
+  person,
+  label,
+  onPress,
+  selected = false,
+  width = CARD_WIDTH,
+}: {
+  person: Person;
+  label: string;
+  onPress: (person: Person) => void;
+  selected?: boolean;
+  width?: number;
+}) {
+  return (
+    <Pressable
+      style={[
+        styles.personCard,
+        { width },
+        selected && styles.selectedCard,
+      ]}
+      onPress={() => onPress(person)}
+    >
+      <View style={[styles.avatar, selected && styles.selectedAvatar]}>
+        <Text style={styles.avatarText}>
+          {person.name.charAt(0).toUpperCase()}
+        </Text>
+      </View>
+      <Text
+        style={[
+          styles.relationshipLabel,
+          selected && styles.selectedRelationshipLabel,
+        ]}
+      >
+        {label}
+      </Text>
+      <Text style={styles.personName}>{person.name}</Text>
+    </Pressable>
+  );
+}
+
 export default function ExploreScreen() {
   const [people, setPeople] = useState<Person[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
 
   useEffect(() => {
-    loadData();
-  }, []);
+  let isMounted = true;
 
-  async function loadData() {
+  const fetchData = async () => {
     try {
       const [peopleResponse, relationshipsResponse] = await Promise.all([
         fetch(`${API_URL}/people`),
@@ -46,16 +85,25 @@ export default function ExploreScreen() {
       const relationshipsData: Relationship[] =
         await relationshipsResponse.json();
 
-      setPeople(peopleData);
-      setRelationships(relationshipsData);
+      if (isMounted) {
+        setPeople(peopleData);
+        setRelationships(relationshipsData);
 
-      if (peopleData.length > 0) {
-        setSelectedPerson(peopleData[0]);
+        if (peopleData.length > 0) {
+          setSelectedPerson(peopleData[0]);
+        }
       }
     } catch (error) {
       console.log("Could not connect to the server:", error);
     }
-  }
+  };
+
+  fetchData();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
 
   if (!selectedPerson) {
     return (
@@ -133,45 +181,7 @@ export default function ExploreScreen() {
             relationship.relatedPersonId === parents[0].id))
     );
 
-  function PersonCard({
-    person,
-    label,
-    selected = false,
-    width = CARD_WIDTH,
-  }: {
-    person: Person;
-    label: string;
-    selected?: boolean;
-    width?: number;
-  }) {
-    return (
-      <Pressable
-        style={[
-          styles.personCard,
-          { width },
-          selected && styles.selectedCard,
-        ]}
-        onPress={() => setSelectedPerson(person)}
-      >
-        <View style={[styles.avatar, selected && styles.selectedAvatar]}>
-          <Text style={styles.avatarText}>
-            {person.name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
 
-        <Text
-          style={[
-            styles.relationshipLabel,
-            selected && styles.selectedRelationshipLabel,
-          ]}
-        >
-          {label}
-        </Text>
-
-        <Text style={styles.personName}>{person.name}</Text>
-      </Pressable>
-    );
-  }
 
   return (
     <ScrollView
@@ -198,6 +208,7 @@ export default function ExploreScreen() {
               <View style={styles.parentsRow}>
                 {parents.map((parent) => (
                   <PersonCard
+                    onPress={setSelectedPerson}
                     key={parent.id}
                     person={parent}
                     label="Parent"
@@ -228,6 +239,7 @@ export default function ExploreScreen() {
           {/* Selected person and lateral relationships */}
           <View style={styles.relationshipRow}>
             <PersonCard
+              onPress={setSelectedPerson}
               person={selectedPerson}
               label="Selected person"
               selected
@@ -244,6 +256,7 @@ export default function ExploreScreen() {
                   person={sibling}
                   label="Sibling"
                   width={LATERAL_CARD_WIDTH}
+                  onPress={setSelectedPerson}
                 />
               </View>
             ))}
@@ -259,6 +272,7 @@ export default function ExploreScreen() {
                   person={spouse}
                   label="Spouse"
                   width={LATERAL_CARD_WIDTH}
+                  onPress={setSelectedPerson}
                 />
               </View>
             ))}
@@ -275,6 +289,7 @@ export default function ExploreScreen() {
                     key={child.id}
                     person={child}
                     label="Child"
+                    onPress={setSelectedPerson}
                   />
                 ))}
               </View>
